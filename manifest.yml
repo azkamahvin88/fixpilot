@@ -1,0 +1,117 @@
+modules:
+  rovo:agent:
+    - key: fixpilot-agent
+      name: FixPilot
+      description: Bug-triage copilot for Jira. Reads a bug issue, scores how complete the report is, ranks likely root causes from linked context, and drafts a fix plan plus a Confluence runbook — never writing anything until you confirm.
+      prompt: >
+        You are FixPilot, a careful bug-triage copilot for software teams working in Jira.
+        You help developers understand a bug before they fix it. You NEVER invent
+        facts: every claim you make must come from the issue, its linked issues, or
+        its comments, which you read through your actions. If information is missing,
+        say so explicitly and list exactly what is missing.
+        Your workflow: (1) call get-issue-triage to read and score the issue;
+        (2) call get-linked-context to gather linked issues and recent comments;
+        (3) present a triage summary: completeness score, missing information,
+        ranked root-cause hypotheses with evidence, and a draft fix plan;
+        (4) ONLY after the user explicitly confirms, call post-triage-comment
+        and/or create-runbook-page. Never call a write action before confirmation,
+        and never present a draft as if it were already saved.
+        Keep answers structured, short, and in the user's language. When the user
+        writes in Indonesian, answer in Indonesian; otherwise answer in English.
+      conversationStarters:
+        - Triage this issue
+        - What is missing from this bug report?
+        - Draft a fix plan for this issue
+      actions:
+        - get-issue-triage
+        - get-linked-context
+        - draft-fix-plan
+        - post-triage-comment
+        - create-runbook-page
+  rovo:mcp:
+    - key: fixpilot-mcp
+      name: FixPilot MCP
+      tools:
+        - get-issue-triage
+        - get-linked-context
+  jira:issuePanel:
+    - key: fixpilot-panel
+      function: panel
+      title: FixPilot Triage
+  action:
+    - key: get-issue-triage
+      name: Triage a Jira issue
+      description: Read a Jira issue and score how complete the bug report is, listing exactly what is missing.
+      function: resolver
+      actionVerb: GET
+      inputs:
+        issueKey:
+          title: Issue key
+          description: The Jira issue key, e.g. PROJ-123. Uses the issue open in context when omitted.
+          type: string
+          required: false
+    - key: get-linked-context
+      name: Get linked issue context
+      description: Fetch issues linked to a Jira issue plus its most recent comments.
+      function: resolver
+      actionVerb: GET
+      inputs:
+        issueKey:
+          title: Issue key
+          description: The Jira issue key, e.g. PROJ-123. Uses the issue open in context when omitted.
+          type: string
+          required: false
+    - key: draft-fix-plan
+      name: Draft a fix plan
+      description: Draft a fix plan (ranked root-cause hypotheses, repro checklist, test checklist) as text. Does not save anything.
+      function: resolver
+      actionVerb: GET
+      inputs:
+        issueKey:
+          title: Issue key
+          description: The Jira issue key, e.g. PROJ-123. Uses the issue open in context when omitted.
+          type: string
+          required: false
+    - key: post-triage-comment
+      name: Post triage summary as a comment
+      description: Post the triage summary as a comment on the Jira issue. Only call after the user confirms.
+      function: resolver
+      actionVerb: UPDATE
+      inputs:
+        issueKey:
+          title: Issue key
+          description: The Jira issue key, e.g. PROJ-123. Uses the issue open in context when omitted.
+          type: string
+          required: false
+    - key: create-runbook-page
+      name: Create a Confluence runbook draft
+      description: Create a Confluence page with the reproduction steps and fix plan. Only call after the user confirms.
+      function: resolver
+      actionVerb: CREATE
+      inputs:
+        issueKey:
+          title: Issue key
+          description: The Jira issue key, e.g. PROJ-123. Uses the issue open in context when omitted.
+          type: string
+          required: false
+        spaceKey:
+          title: Confluence space key
+          description: Space where the runbook page is created. Uses the first accessible space when omitted.
+          type: string
+          required: false
+  function:
+    - key: resolver
+      handler: index.resolver
+    - key: panel
+      handler: panel.run
+app:
+  runtime:
+    name: nodejs24.x
+  id: ari:cloud:ecosystem::app/00000000-0000-4000-8000-000000000000
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+    - read:confluence-content.all
+    - write:confluence-content
+    - storage:app
